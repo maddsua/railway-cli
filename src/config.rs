@@ -172,7 +172,7 @@ impl Configs {
     }
 
     pub fn get_closest_linked_project_directory(&self) -> Result<String> {
-        if Self::get_railway_token().is_some() {
+        if Self::get_railway_token().is_some() || Self::get_railway_project().is_some() {
             return self.get_current_directory();
         }
 
