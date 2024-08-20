@@ -119,6 +119,10 @@ impl Configs {
         std::env::var("RAILWAY_PROJECT").ok()
     }
 
+    pub fn get_railway_service() -> Option<String> {
+        std::env::var("RAILWAY_SERVICE").ok()
+    }
+
     pub fn env_is_ci() -> bool {
         std::env::var("CI")
             .map(|val| val.trim().to_lowercase() == "true")
@@ -192,12 +196,36 @@ impl Configs {
     }
 
     pub async fn get_linked_project(&self) -> Result<LinkedProject> {
+        let client = GQLClient::new_authorized(self)?;
+
+        if Self::get_railway_project().is_some() {
+            let data = post_graphql::<queries::Project, _>(
+                &client,
+                self.get_backboard(),
+                queries::project::Variables {
+                    id: Self::get_railway_project().unwrap(),
+                },
+            )
+            .await?;
+
+            if let Some(env_node) = data.project.environments.edges.first() {
+                let env = env_node.node.clone();
+
+                return Ok(LinkedProject {
+                    project_path: self.get_current_directory()?,
+                    name: Some(data.project.name),
+                    project: data.project.id,
+                    environment: env.id,
+                    environment_name: Some(env.name),
+                    service: Self::get_railway_service(),
+                });
+            }
+        }
+
         let path = self.get_closest_linked_project_directory()?;
         let project = self.root_config.projects.get(&path);
 
         if Self::get_railway_token().is_some() {
-            let client = GQLClient::new_authorized(self)?;
-
             let data = post_graphql::<queries::ProjectToken, _>(
                 &client,
                 self.get_backboard(),
@@ -213,30 +241,6 @@ impl Configs {
                 environment_name: Some(data.project_token.environment.name),
                 service: project.cloned().and_then(|p| p.service),
             });
-        }
-
-        if Self::get_railway_project().is_some() {
-            let client = GQLClient::new_authorized(self)?;
-
-            let data = post_graphql::<queries::Project, _>(
-                &client,
-                self.get_backboard(),
-                queries::project::Variables {
-                    id: Self::get_railway_project().unwrap(),
-                },
-            )
-            .await?;
-
-            if let Some(base_env) = data.project.base_environment {
-                return Ok(LinkedProject {
-                    project_path: self.get_current_directory()?,
-                    name: Some(data.project.name),
-                    project: data.project.id,
-                    environment: base_env.id,
-                    environment_name: Some(base_env.name),
-                    service: project.cloned().and_then(|p| p.service),
-                });
-            }
         }
 
         project

@@ -5,10 +5,6 @@ query Project($id: String!) {
     team {
       name
     }
-    baseEnvironment {
-        id
-        name
-    }
     environments {
       edges {
         node {
