@@ -4,10 +4,13 @@ use crate::{
 };
 use anyhow::{Context, Result};
 use futures::StreamExt;
+use tokio::sync::mpsc;
+use tokio::time::Duration;
 
 pub async fn stream_build_logs(
     deployment_id: String,
     on_log: impl Fn(build_logs::LogFields),
+	mut abort_rx: mpsc::Receiver<()>,
 ) -> Result<()> {
     let vars = subscriptions::build_logs::Variables {
         deployment_id: deployment_id.clone(),
@@ -15,15 +18,32 @@ pub async fn stream_build_logs(
         limit: Some(500),
     };
 
-    let mut stream = subscribe_graphql::<subscriptions::BuildLogs>(vars).await?;
-    while let Some(Ok(log)) = stream.next().await {
-        let log = log.data.context("Failed to retrieve build log")?;
-        for line in log.build_logs {
-            on_log(line);
-        }
-    }
+	let mut timeout = tokio::time::interval(Duration::from_millis(100));
+	let mut stream = subscribe_graphql::<subscriptions::BuildLogs>(vars).await?;
 
-    Ok(())
+	loop {
+		tokio::select! {
+            _ = timeout.tick() => {
+                if abort_rx.try_recv().is_ok() {
+                    return Ok(());
+                }
+            },
+			Some(result) = stream.next() => {
+				match result {
+					Ok(log) => {
+						let log = log.data.context("Failed to retrieve build log")?;
+						for line in log.build_logs {
+							on_log(line);
+						}
+					}
+					Err(err) => {
+						// Handle error here, e.g., log it or return an error
+						eprintln!("Error processing log: {}", err);
+					}
+				}
+			}
+		}
+	}
 }
 
 pub async fn stream_deploy_logs(
