@@ -199,15 +199,14 @@ impl Configs {
                 post_graphql::<queries::ProjectToken, _>(&client, self.get_backboard(), vars)
                     .await?;
 
-            let project = LinkedProject {
+            return Ok(LinkedProject {
                 project_path: self.get_current_directory()?,
                 name: Some(data.project_token.project.name),
                 project: data.project_token.project.id,
                 environment: data.project_token.environment.id,
                 environment_name: Some(data.project_token.environment.name),
                 service: project.cloned().and_then(|p| p.service),
-            };
-            return Ok(project);
+            });
         }
 
         project
