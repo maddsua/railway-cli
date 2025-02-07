@@ -30,7 +30,7 @@ permissions:
 jobs:
   containerize:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }} || ${{ inputs.is_manual_run }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' || inputs.is_manual_run }}
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
@@ -50,10 +50,15 @@ jobs:
           github-token: ${{ github.token }}
 
       - name: Retreive version from artifact
+        if: ${{ !inputs.is_manual_run }}
         run: |
           TEMP_VERSION=$(cat cli-version.txt | tr -d ' \r\n' | sed 's/^[^0-9]*//')
           test -z $TEMP_VERSION && exit 1
           echo "CLI_VERSION=$TEMP_VERSION" >> $GITHUB_ENV
+
+      - name: Retreive version from inputs
+        if: ${{ inputs.is_manual_run }}
+        run: echo "CLI_VERSION=${{ inputs.tag }}" >> $GITHUB_ENV
 
       - name: Login to ghcr
         uses: docker/login-action@v3
