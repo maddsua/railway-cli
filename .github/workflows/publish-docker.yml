@@ -12,10 +12,6 @@ on:
         type: boolean
         required: false
         default: true
-      tag:
-        description: 'Docker image tag'
-        type: string
-        required: true
 
 env:
   REGISTRY: ghcr.io
@@ -28,9 +24,9 @@ permissions:
   packages: write
 
 jobs:
-  containerize:
+  containerize-release:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' || inputs.is_manual_run }}
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
@@ -50,15 +46,10 @@ jobs:
           github-token: ${{ github.token }}
 
       - name: Retreive version from artifact
-        if: ${{ !inputs.is_manual_run }}
         run: |
           TEMP_VERSION=$(cat cli-version.txt | tr -d ' \r\n' | sed 's/^[^0-9]*//')
           test -z $TEMP_VERSION && exit 1
           echo "CLI_VERSION=$TEMP_VERSION" >> $GITHUB_ENV
-
-      - name: Retreive version from inputs
-        if: ${{ inputs.is_manual_run }}
-        run: echo "CLI_VERSION=${{ inputs.tag }}" >> $GITHUB_ENV
 
       - name: Login to ghcr
         uses: docker/login-action@v3
@@ -74,3 +65,33 @@ jobs:
           context: .
           push: true
           tags: ${{ env.IMAGE_BASE_TAG }}:${{ env.CLI_VERSION }}, ${{ env.IMAGE_BASE_TAG }}:latest
+
+  containerize-manual:
+    if: ${{ github.event.workflow_run.conclusion == 'success' || inputs.is_manual_run }}
+    runs-on: ubuntu-latest
+    steps:
+      - id: release
+        name: Get release
+        uses: pozetroninc/github-action-get-latest-release@master
+        with:
+          repository: ${{ github.repository }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download the binary
+        run: wget https://github.com/${{ github.repository }}/releases/download/${{ steps.release.outputs.release }}/railway-${{ steps.release.outputs.release }}-x86_64-unknown-linux-musl.tar.gz -O railway.tar.gz
+      - name: Extract the binary
+        run: tar -xf railway.tar.gz
+
+      - name: Login to ghcr
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ env.IMAGE_BASE_TAG }}:${{ steps.release.outputs.release }}, ${{ env.IMAGE_BASE_TAG }}:latest
