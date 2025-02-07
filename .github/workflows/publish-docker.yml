@@ -67,7 +67,7 @@ jobs:
           tags: ${{ env.IMAGE_BASE_TAG }}:${{ env.CLI_VERSION }}, ${{ env.IMAGE_BASE_TAG }}:latest
 
   containerize-manual:
-    if: ${{ github.event.workflow_run.conclusion == 'success' || inputs.is_manual_run }}
+    if: ${{ inputs.is_manual_run }}
     runs-on: ubuntu-latest
     steps:
       - id: release
@@ -76,6 +76,7 @@ jobs:
         with:
           repository: ${{ github.repository }}
           token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Download the binary
         run: wget https://github.com/${{ github.repository }}/releases/download/${{ steps.release.outputs.release }}/railway-${{ steps.release.outputs.release }}-x86_64-unknown-linux-musl.tar.gz -O railway.tar.gz
       - name: Extract the binary
