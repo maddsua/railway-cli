@@ -6,6 +6,16 @@ on:
     types:
       - completed
   workflow_dispatch:
+    inputs:
+      is_manual_run:
+        description: 'Identify manual runs'
+        type: boolean
+        required: false
+        default: true
+      tag:
+        description: 'Docker image tag'
+        type: string
+        required: true
 
 env:
   REGISTRY: ghcr.io
@@ -20,7 +30,7 @@ permissions:
 jobs:
   containerize:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }} || ${{ inputs.externall_call }}
+    if: ${{ github.event.workflow_run.conclusion == 'success' }} || ${{ inputs.is_manual_run }}
     steps:
       - name: 'Checkout'
         uses: actions/checkout@v4
