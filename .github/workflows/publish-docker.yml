@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       is_manual_run:
-        description: 'Identify manual runs'
+        description: 'This is a manual run'
         type: boolean
         required: false
         default: true
